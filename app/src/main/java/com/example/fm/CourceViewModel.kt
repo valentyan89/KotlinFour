@@ -27,7 +27,7 @@ class CourceViewModel : ViewModel() {
 
     suspend fun emitation(){
         val oldRate = _rate.value
-        val newRate = 81.92 + Random.nextDouble(-2.0, 2.0)
+        val newRate = oldRate + Random.nextDouble(-2.0, 2.0)
         _rate.emit(newRate)
         _trend.emit(
             value = when{

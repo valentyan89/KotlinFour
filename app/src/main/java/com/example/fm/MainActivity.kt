@@ -43,7 +43,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             FMTheme {
 //                FiveTask()
-                WeatherScreen()
+//                WeatherScreen()
+                LocationAddressScreen()
             }
         }
     }

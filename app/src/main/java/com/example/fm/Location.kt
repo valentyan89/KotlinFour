@@ -48,7 +48,7 @@ fun LocationAddressScreen() {
     val context = LocalContext.current
     val locationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
 
-    var address by remember { mutableStateOf("Нажмите кнопку") }
+    var address by remember { mutableStateOf("нажмите кнопку") }
     var coords by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -61,7 +61,7 @@ fun LocationAddressScreen() {
 
         if (fineGranted || coarseGranted) {
             if (!hasAnyLocationPermission(context)) {
-                errorMessage = "Разрешения на геолокацию не предоставлены"
+                errorMessage = "разрешения гео не даны"
                 isLoading = false
                 return@rememberLauncherForActivityResult
             }
@@ -71,15 +71,15 @@ fun LocationAddressScreen() {
 
             getLocationAndAddress(context, locationClient) { loc, addr ->
                 if (loc != null) {
-                    coords = "Lat: %.6f\nLng: %.6f".format(loc.latitude, loc.longitude)
-                    address = addr ?: "Адрес не удалось определить"
+                    coords = "lat: %.6f\nlon: %.6f".format(loc.latitude, loc.longitude)
+                    address = addr ?: "адрес не определен"
                 } else {
-                    errorMessage = "Не удалось получить местоположение"
+                    errorMessage = "не получилось найти"
                 }
                 isLoading = false
             }
         } else {
-            errorMessage = "Разрешения на геолокацию не предоставлены"
+            errorMessage = "разрешения не предоставлены"
             isLoading = false
         }
     }
@@ -132,17 +132,17 @@ fun LocationAddressScreen() {
                     locationClient = locationClient
                 ) { loc, addr ->
                     if (loc != null) {
-                        coords = "Lat: %.6f\nLng: %.6f".format(loc.latitude, loc.longitude)
-                        address = addr ?: "Адрес не удалось определить"
+                        coords = "lat: %.6f\nlon: %.6f".format(loc.latitude, loc.longitude)
+                        address = addr ?: "адрес не определен"
                     } else {
-                        errorMessage = "Не удалось получить ме��тоположение"
+                        errorMessage = "не получилось найти"
                     }
                     isLoading = false
                 }
             },
             enabled = !isLoading
         ) {
-            Text("Получить мой адрес")
+            Text("получить адрес")
         }
     }
 }
@@ -258,10 +258,12 @@ private fun requestFreshLocation(
             client.removeLocationUpdates(locationCallback)
             onResult(null, null)
         }
-    } catch (e: SecurityException) {
+    }
+    catch (e: SecurityException) {
         Log.w("Location", "SecurityException in requestLocationUpdates", e)
         onResult(null, null)
-    } catch (e: Exception) {
+    }
+    catch (e: Exception) {
         Log.e("Location", "requestLocationUpdates failed", e)
         onResult(null, null)
     }
@@ -287,7 +289,7 @@ private fun processGeocoding(
             object : Geocoder.GeocodeListener {
                 override fun onGeocode(addresses: List<Address>) {
                     val addressText = addresses.firstOrNull()?.let { buildAddressString(it) }
-                    onResult(location, addressText ?: "Адрес не найден")
+                    onResult(location, addressText ?: "адрес не найден")
                 }
 
                 override fun onError(errorMessage: String?) {
@@ -301,7 +303,7 @@ private fun processGeocoding(
         try {
             val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
             val addressText = addresses?.firstOrNull()?.let { buildAddressString(it) }
-            onResult(location, addressText ?: "Адрес не найден")
+            onResult(location, addressText ?: "адрес не найден")
         } catch (e: IOException) {
             Log.e("Geocoder", "getFromLocation IO failed (no internet?)", e)
             onResult(location, null)
@@ -328,5 +330,5 @@ private fun buildAddressString(address: Address): String = buildString {
         if (isNotEmpty()) append(", ")
         append(address.countryName)
     }
-    if (isEmpty()) append("Адрес не распознан")
+    if (isEmpty()) append("адрес не опознан")
 }

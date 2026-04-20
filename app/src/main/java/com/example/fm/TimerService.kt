@@ -93,6 +93,7 @@ object NotificationHelper{
             .setSmallIcon(R.drawable.hllktt)
             .setContentTitle("Уведомление")
             .setContentText("Прошло $seconds секунд")
+            .setOngoing(true)
             .build()
 }
 

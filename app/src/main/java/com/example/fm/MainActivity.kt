@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,9 +35,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.compass.CompasLifecycle
+import com.example.compass.CompasScreen
 import com.example.fm.ui.theme.FMTheme
 
 class MainActivity : ComponentActivity() {
+
+    private val vm: CompasViewModel by viewModels()
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -44,7 +51,10 @@ class MainActivity : ComponentActivity() {
             FMTheme {
 //                FiveTask()
 //                WeatherScreen()
-                LocationAddressScreen()
+//                LocationAddressScreen()
+
+                CompasLifecycle(vm)
+                CompasScreen(vm)
             }
         }
     }

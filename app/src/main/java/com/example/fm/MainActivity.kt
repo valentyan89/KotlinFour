@@ -49,12 +49,12 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             FMTheme {
-//                FiveTask()
+                FiveTask()
 //                WeatherScreen()
 //                LocationAddressScreen()
 
-                CompasLifecycle(vm)
-                CompasScreen(vm)
+//                CompasLifecycle(vm)
+//                CompasScreen(vm)
             }
         }
     }

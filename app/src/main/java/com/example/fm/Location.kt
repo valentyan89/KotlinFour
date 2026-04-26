@@ -2,11 +2,13 @@ package com.example.fm
 
 import android.Manifest
 import android.content.Context
+import android.location.LocationManager
 import android.content.pm.PackageManager
 import android.location.Address
 import android.location.Geocoder
 import android.location.Location
 import android.os.Build
+import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -49,37 +51,30 @@ fun LocationAddressScreen() {
     val locationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
 
     var address by remember { mutableStateOf("нажмите кнопку") }
-    var coords by remember { mutableStateOf("") }
+    var cords by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
-        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-
-        if (fineGranted || coarseGranted) {
-            if (!hasAnyLocationPermission(context)) {
-                errorMessage = "разрешения гео не даны"
-                isLoading = false
-                return@rememberLauncherForActivityResult
-            }
-
+        if (permissions.all { it.value }) {
             isLoading = true
             errorMessage = null
 
             getLocationAndAddress(context, locationClient) { loc, addr ->
                 if (loc != null) {
-                    coords = "lat: %.6f\nlon: %.6f".format(loc.latitude, loc.longitude)
+                    cords = "lat: %.6f\nlon: %.6f".format(loc.latitude, loc.longitude)
                     address = addr ?: "адрес не определен"
-                } else {
-                    errorMessage = "не получилось найти"
+                }
+                else {
+                    errorMessage = "Не удалось определить местоположение, проверьте GPS и интернет"
                 }
                 isLoading = false
             }
-        } else {
-            errorMessage = "разрешения не предоставлены"
+        }
+        else {
+            errorMessage = "Доступ к геолокации не предоставлен"
             isLoading = false
         }
     }
@@ -105,12 +100,12 @@ fun LocationAddressScreen() {
         Spacer(Modifier.height(16.dp))
 
         Text(
-            text = coords,
+            text = cords,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(28.dp))
 
         errorMessage?.let { msg ->
             Text(
@@ -126,15 +121,22 @@ fun LocationAddressScreen() {
                 isLoading = true
                 errorMessage = null
 
+                if (!isLocationEnabled(context)) {
+                    isLoading = false
+                    errorMessage = "гео выключена, включите"
+                    return@Button
+                }
+
                 requestLocationPermissions(
                     context = context,
                     launcher = permissionLauncher,
                     locationClient = locationClient
                 ) { loc, addr ->
                     if (loc != null) {
-                        coords = "lat: %.6f\nlon: %.6f".format(loc.latitude, loc.longitude)
-                        address = addr ?: "адрес не определен"
-                    } else {
+                        cords = "lat: %.6f\nlon: %.6f".format(loc.latitude, loc.longitude)
+                        address = addr ?: "нет интернета"
+                    }
+                    else {
                         errorMessage = "не получилось найти"
                     }
                     isLoading = false
@@ -142,7 +144,7 @@ fun LocationAddressScreen() {
             },
             enabled = !isLoading
         ) {
-            Text("получить адрес")
+            Text("get address")
         }
     }
 }
@@ -156,97 +158,78 @@ private fun requestLocationPermissions(
     val needed = arrayOf(
         Manifest.permission.ACCESS_FINE_LOCATION,
         Manifest.permission.ACCESS_COARSE_LOCATION
-    ).filter {
-        ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
-    }.toTypedArray()
+    ).filter { ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED}.toTypedArray()
 
-    if (needed.isEmpty()) {
-        if (hasAnyLocationPermission(context)) {
-            getLocationAndAddress(context, locationClient, onResult)
-        } else {
-            onResult(null, null)
-        }
-    } else {
+    if (needed.isNotEmpty()) {
         launcher.launch(needed)
+    }
+    else {
+        getLocationAndAddress(context, locationClient, onResult)
     }
 }
 
-
+@RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
 private fun getLocationAndAddress(
     context: Context,
     client: FusedLocationProviderClient,
     onResult: (Location?, String?) -> Unit
 ) {
-    if (!hasAnyLocationPermission(context)) {
-        onResult(null, null)
-        return
-    }
-
     try {
         client.lastLocation
             .addOnSuccessListener { location: Location? ->
                 if (location != null) {
                     processGeocoding(context, location, onResult)
-                } else {
+                }
+                else {
                     requestFreshLocation(context, client, onResult)
                 }
             }
             .addOnFailureListener { e ->
-                Log.e("Location", "lastLocation failed", e)
                 onResult(null, null)
             }
     } catch (e: SecurityException) {
-        Log.w("Location", "SecurityException (permission revoked?)", e)
         onResult(null, null)
     }
 }
 
-private fun hasAnyLocationPermission(context: Context): Boolean {
-    val fine = ContextCompat.checkSelfPermission(
-        context,
-        Manifest.permission.ACCESS_FINE_LOCATION
-    ) == PackageManager.PERMISSION_GRANTED
-
-    val coarse = ContextCompat.checkSelfPermission(
-        context,
-        Manifest.permission.ACCESS_COARSE_LOCATION
-    ) == PackageManager.PERMISSION_GRANTED
-
-    return fine || coarse
-}
-
-@RequiresPermission(anyOf = [
-    Manifest.permission.ACCESS_FINE_LOCATION,
-    Manifest.permission.ACCESS_COARSE_LOCATION
-])
+@RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
 private fun requestFreshLocation(
     context: Context,
     client: FusedLocationProviderClient,
     onResult: (Location?, String?) -> Unit
 ) {
-    if (!hasAnyLocationPermission(context)) {
-        onResult(null, null)
-        return
-    }
-
     val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000)
         .setWaitForAccurateLocation(true)
         .setMaxUpdateAgeMillis(10000)
         .setMaxUpdates(1)
         .build()
 
+    lateinit var timeoutHandler: Handler
+    lateinit var timeoutRunnable: Runnable
+
     val locationCallback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
+            timeoutHandler.removeCallbacks(timeoutRunnable)
             client.removeLocationUpdates(this)
 
+            client.removeLocationUpdates(this)
             val freshLocation = result.lastLocation
             if (freshLocation != null) {
                 processGeocoding(context, freshLocation, onResult)
-            } else {
+            }
+            else {
                 onResult(null, null)
             }
         }
     }
+
+    timeoutHandler = Handler(Looper.getMainLooper())
+    timeoutRunnable = Runnable {
+        client.removeLocationUpdates(locationCallback)
+        onResult(null, null)
+    }
+
+    timeoutHandler.postDelayed(timeoutRunnable, 12000)
 
     try {
         client.requestLocationUpdates(
@@ -254,16 +237,19 @@ private fun requestFreshLocation(
             locationCallback,
             Looper.getMainLooper()
         ).addOnFailureListener { e ->
+            timeoutHandler.removeCallbacks(timeoutRunnable)
             Log.e("Location", "requestLocationUpdates failed", e)
             client.removeLocationUpdates(locationCallback)
             onResult(null, null)
         }
     }
     catch (e: SecurityException) {
+        timeoutHandler.removeCallbacks(timeoutRunnable)
         Log.w("Location", "SecurityException in requestLocationUpdates", e)
         onResult(null, null)
     }
     catch (e: Exception) {
+        timeoutHandler.removeCallbacks(timeoutRunnable)
         Log.e("Location", "requestLocationUpdates failed", e)
         onResult(null, null)
     }
@@ -281,6 +267,17 @@ private fun processGeocoding(
 
     val geocoder = Geocoder(context, Locale.getDefault())
 
+    var delivered = false
+    fun deliverOnce(addr: String?) {
+        if (delivered) return
+        delivered = true
+        onResult(location, addr)
+    }
+
+    val h = Handler(Looper.getMainLooper())
+    val timeout = Runnable { deliverOnce(null) }
+    h.postDelayed(timeout, 8000)
+
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         geocoder.getFromLocation(
             location.latitude,
@@ -288,28 +285,28 @@ private fun processGeocoding(
             1,
             object : Geocoder.GeocodeListener {
                 override fun onGeocode(addresses: List<Address>) {
-                    val addressText = addresses.firstOrNull()?.let { buildAddressString(it) }
-                    onResult(location, addressText ?: "адрес не найден")
+                    h.removeCallbacks(timeout)
+                    val text = addresses.firstOrNull()?.let { buildAddressString(it) }
+                    deliverOnce(text)
                 }
 
                 override fun onError(errorMessage: String?) {
-                    Log.w("Geocoder", "Error: $errorMessage")
-                    onResult(location, null)
+                    h.removeCallbacks(timeout)
+                    deliverOnce(null)
                 }
             }
         )
-    } else {
+    }
+    else {
         @Suppress("DEPRECATION")
         try {
             val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
-            val addressText = addresses?.firstOrNull()?.let { buildAddressString(it) }
-            onResult(location, addressText ?: "адрес не найден")
-        } catch (e: IOException) {
-            Log.e("Geocoder", "getFromLocation IO failed (no internet?)", e)
-            onResult(location, null)
+            h.removeCallbacks(timeout)
+            val text = addresses?.firstOrNull()?.let { buildAddressString(it) }
+            deliverOnce(text)
         } catch (e: Exception) {
-            Log.e("Geocoder", "getFromLocation failed", e)
-            onResult(location, null)
+            h.removeCallbacks(timeout)
+            deliverOnce(null)
         }
     }
 }
@@ -330,5 +327,11 @@ private fun buildAddressString(address: Address): String = buildString {
         if (isNotEmpty()) append(", ")
         append(address.countryName)
     }
-    if (isEmpty()) append("адрес не опознан")
+    if (isEmpty()) append("адрес не распознан")
+}
+
+
+private fun isLocationEnabled(context: Context): Boolean {
+    val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+    return lm.isProviderEnabled(LocationManager.GPS_PROVIDER) || lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
 }

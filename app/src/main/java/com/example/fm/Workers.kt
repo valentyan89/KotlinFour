@@ -35,34 +35,31 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.work.ArrayCreatingInputMerger
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.OutOfQuotaPolicy
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
-import com.example.fm.NotificationHelper.createNotificationChannel
 import kotlinx.coroutines.delay
 import kotlin.random.Random
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.work.WorkInfo
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
-import androidx.work.ExistingWorkPolicy
 
 class WeatherWorker(
     appContext: Context,
@@ -75,9 +72,8 @@ class WeatherWorker(
         setForegroundAsync(
             createProgressNotification(applicationContext, "Загружаем погоду: $city...")
         )
-        Log.d("www", "Start: $city")
 
-        delay(2000)
+        delay(4000)
 
         val temp = Random.nextInt(-20, 25)
         val weatherConditions = listOf("ясно", "облачно", "дождливо", "снежно").random()
@@ -98,13 +94,7 @@ class WeatherWorker(
     }
 }
 
-data class CityWeather(
-    val city: String,
-    val temp: Int?,
-    val cond: String?
-)
-
-class ComninationWeatherWorker(
+class CombinationWeatherWorker(
     appContext: Context,
     params: WorkerParameters
 ) : CoroutineWorker(appContext, params) {
@@ -114,13 +104,11 @@ class ComninationWeatherWorker(
             createProgressNotification(applicationContext, "Формируем итоговый отчёт...")
         )
 
-        delay(1500)
+        delay(3000)
 
         val cities = inputData.getStringArray(WeatherWorker.KEY_CITY) ?: emptyArray()
         val temperatures = inputData.getIntArray(WeatherWorker.KEY_TEMP) ?: IntArray(0)
         val weatherConditions = inputData.getStringArray(WeatherWorker.KEY_CONDITION) ?: emptyArray()
-
-        Log.d("RRR", "cities size = ${cities.size}")
 
         if (cities.isEmpty()) return Result.failure()
 
@@ -156,29 +144,32 @@ fun createProgressNotification(
         .setProgress(0, 0, true)
         .build()
 
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        ForegroundInfo(3435, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-    } else {
-        ForegroundInfo(3435, notification)
+    return when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> ForegroundInfo(
+            3435,
+            notification,
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+        )
+
+        else -> ForegroundInfo(3435, notification)
     }
 }
 
 
 @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
 fun showFinalNotification(context: Context, report: String) {
-    val channelId = "weather_progress"
-    createNotificationChannel1(context, channelId)
-
+    createNotificationChannel1(context, "weather_progress")
 
     val intent = Intent(context, MainActivity::class.java).apply {
         putExtra("weather_report", report)
     }
+
     val pendingIntent = PendingIntent.getActivity(
         context, 0, intent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
-    val notification = NotificationCompat.Builder(context, channelId)
+    val notification = NotificationCompat.Builder(context, "weather_progress")
         .setSmallIcon(android.R.drawable.ic_menu_myplaces)
         .setContentTitle("прогноз реди")
         .setContentText("тапни")
@@ -193,6 +184,7 @@ fun showFinalNotification(context: Context, report: String) {
 fun startChain(context: Context){
     val workManager = WorkManager.getInstance(context)
     val towns = listOf("Moscow", "London", "Chernogorie", "Netherland")
+
     val requests = towns.map { it ->
         OneTimeWorkRequestBuilder<WeatherWorker>()
             .setInputData(workDataOf(WeatherWorker.KEY_CITY to it))
@@ -201,16 +193,13 @@ fun startChain(context: Context){
             .build()
     }
 
-    val combineRequest = OneTimeWorkRequestBuilder<ComninationWeatherWorker>()
+    val combineRequest = OneTimeWorkRequestBuilder<CombinationWeatherWorker>()
         .setInputMerger(ArrayCreatingInputMerger::class.java)
         .addTag("combine")
         .build()
 
-    workManager.beginUniqueWork(
-        "weather_chain",
-        ExistingWorkPolicy.REPLACE,
-        requests
-    )
+    workManager
+        .beginWith(requests)
         .then(combineRequest)
         .enqueue()
 }
@@ -219,6 +208,7 @@ fun startChain(context: Context){
 fun WeatherScreen() {
     val context = LocalContext.current
     val workManager = remember { WorkManager.getInstance(context) }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { isGranted ->
@@ -258,7 +248,6 @@ fun WeatherScreen() {
     val workInfos by workManager.getWorkInfosByTagLiveData("weather")
         .observeAsState(initial = emptyList())
 
-
     LaunchedEffect(workInfos) {
         if (workInfos.isEmpty()) {
             isWorking = false
@@ -268,7 +257,6 @@ fun WeatherScreen() {
         val allSucceeded = workInfos.all { it.state == WorkInfo.State.SUCCEEDED }
         val anyFailed = workInfos.any { it.state == WorkInfo.State.FAILED }
         val anyCancelled = workInfos.any { it.state == WorkInfo.State.CANCELLED }
-
         val runningCount = workInfos.count { it.state == WorkInfo.State.RUNNING }
 
         workInfos.forEach { info ->
@@ -278,17 +266,21 @@ fun WeatherScreen() {
                 WorkInfo.State.RUNNING -> {
                     cityStates[city] = CityStatus("loading", null, null)
                 }
+
                 WorkInfo.State.SUCCEEDED -> {
                     val temp = info.outputData.getInt(WeatherWorker.KEY_TEMP, 0)
                     val cond = info.outputData.getString(WeatherWorker.KEY_CONDITION) ?: "clear"
                     cityStates[city] = CityStatus("ready", temp, cond)
                 }
+
                 WorkInfo.State.FAILED -> {
                     cityStates[city] = CityStatus("err", null, null)
                 }
+
                 WorkInfo.State.CANCELLED -> {
                     cityStates[city] = CityStatus("err", null, null)
                 }
+
                 else -> {}
             }
         }
@@ -297,8 +289,8 @@ fun WeatherScreen() {
             anyCancelled -> "some canceled by user"
             anyFailed -> "err with loading"
             allSucceeded -> "all good"
-            runningCount > 0 -> "loading.. ($runningCount processed)"
-            else -> "waiting.."
+            runningCount > 0 -> "loading ($runningCount processed)"
+            else -> "waiting"
         }
 
         isWorking = !allSucceeded && !anyFailed && !anyCancelled
@@ -308,13 +300,13 @@ fun WeatherScreen() {
             val avg = temps.average().toInt()
 
             finalReport = buildString {
-                append("ended pred\n")
+                append("ended prediction\n")
                 cityStates.forEach { (city, status) ->
                     if (status.temp != null) {
-                        append("$city: ${status.temp}°C, ${status.cond}\n")
+                        append("$city: ${status.temp}`C, ${status.cond}\n")
                     }
                 }
-                append("\naverage temp: $avg°C")
+                append("\navg temp: $avg°C")
             }
 
             showFinalNotification(context, finalReport!!)
@@ -325,13 +317,13 @@ fun WeatherScreen() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
             text = "Weather prediction",
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineLarge
         )
 
         Text(
@@ -340,12 +332,14 @@ fun WeatherScreen() {
             textAlign = TextAlign.Center,
             color = when {
                 isWorking -> MaterialTheme.colorScheme.primary
+
                 errorMessage != null -> MaterialTheme.colorScheme.error
+
                 else -> MaterialTheme.colorScheme.onSurface
             }
         )
-        Spacer(modifier = Modifier.height(24.dp))
 
+        Spacer(modifier = Modifier.height(24.dp))
 
         towns.forEach {
             CityWeatherCard(
@@ -353,7 +347,6 @@ fun WeatherScreen() {
                 state = cityStates[it] ?: CityStatus("—", null, null)
             )
         }
-
 
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -363,7 +356,7 @@ fun WeatherScreen() {
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        WeatherActionButtons(
+        WeatherButton(
             isWorking = isWorking,
             onStartClick = {
                 workManager.pruneWork()
@@ -427,13 +420,15 @@ fun CityWeatherCard(
                 state.status == "loading" -> {
                     CircularProgressIndicator(modifier = Modifier.size(32.dp))
                 }
+
                 state.status == "ready" && state.temp != null -> {
                     Text(
-                        text = "${state.temp}°C",
+                        text = "${state.temp}`C",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
                 }
+
                 state.status == "err" -> {
                     Icon(
                         imageVector = Icons.Default.Warning,
@@ -469,7 +464,7 @@ fun FinalReportCard(
 
 
 @Composable
-fun WeatherActionButtons(
+fun WeatherButton(
     isWorking: Boolean,
     onStartClick: () -> Unit,
     onCancelClick: () -> Unit,
@@ -489,7 +484,7 @@ fun WeatherActionButtons(
 
         if (isWorking) {
             Spacer(modifier = Modifier.height(16.dp))
-            OutlinedButton(
+            Button(
                 onClick = onCancelClick,
                 modifier = Modifier.fillMaxWidth(0.8f)
             ) {

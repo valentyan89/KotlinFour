@@ -6,6 +6,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.Binder
+import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -55,12 +56,15 @@ class TimerService: Service(){
         if (flag) return
         flag = true
         sec = -0
+        TimerState.sec.value = 0
         val notification = NotificationHelper.createMessage(this, sec)
         startForeground(ID, notification)
         handler.postDelayed(started, 1000L)
     }
 
     fun stopTimer(){
+        sec = 0
+        TimerState.sec.value = 0
         flag = false
         handler.removeCallbacks(started)
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -81,10 +85,16 @@ object NotificationHelper{
     private const val CHANNEL_NAME = "Name"
 
     fun createNotificationChannel(context: Context){
-        val notificationManager: NotificationManager = context.getSystemService(Service.NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        val channel = NotificationChannel(CHANNEL_ID,CHANNEL_NAME, NotificationManager.IMPORTANCE_DEFAULT)
-        notificationManager.createNotificationChannel(channel)
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                CHANNEL_NAME,
+                NotificationManager.IMPORTANCE_DEFAULT
+            )
+            notificationManager.createNotificationChannel(channel)
+        }
     }
 
 
@@ -94,6 +104,7 @@ object NotificationHelper{
             .setContentTitle("Уведомление")
             .setContentText("Прошло $seconds секунд")
             .setOngoing(true)
+            .setSilent(true)
             .build()
 }
 

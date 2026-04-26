@@ -38,7 +38,7 @@ fun CompasScreen(viewModel: CompasViewModel) {
         label = "compass_rotation"
     )
 
-    if (!viewModel.sensorAvailable) {
+    if (viewModel.sensorAvailable) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -61,84 +61,56 @@ fun CompasScreen(viewModel: CompasViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF0F1115))
-            .padding(horizontal = 20.dp),
+            .padding(20.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "компас",
-            color = Color(0xFFADE3FF),
-            fontSize = 34.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        val screenWidth = LocalConfiguration.current.screenWidthDp.dp
-        val compassSize = screenWidth * 0.76f
+        Text("компас", color = Color(0xFFADE3FF), fontSize = 34.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(20.dp))
 
         Box(
             modifier = Modifier
-                .size(compassSize)
+                .size(280.dp)
                 .clip(CircleShape)
                 .background(Color(0xFF546179)),
             contentAlignment = Alignment.Center
         ) {
-            CompassCanvas(animatedRotation)
+            Canvas(Modifier.fillMaxSize(0.9f)) {
+                val cx = size.width / 2f
+                val cy = size.height / 2f
+                val radius = min(size.width, size.height) / 2f
+
+                rotate(animatedRotation, Offset(cx, cy)) {
+                    drawLine(
+                        color = Color(0xFFE5359F),
+                        start = Offset(cx, cy),
+                        end = Offset(cx, cy - radius * 0.8f),
+                        strokeWidth = 16f
+                    )
+                    drawLine(
+                        color = Color.DarkGray,
+                        start = Offset(cx, cy),
+                        end = Offset(cx, cy + radius * 0.8f),
+                        strokeWidth = 16f
+                    )
+                }
+
+                drawCircle(Color.LightGray, 12f, Offset(cx, cy))
+            }
 
             Text(
                 text = "N",
-                color = Color(0xFFE53935),
+                color = Color(0xFFE5359F),
                 fontSize = 30.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 16.dp)
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp)
             )
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Text(
-            text = "азимут ${azimuth.toInt()}`",
-            color = Color(0xFFADE3FF),
-            fontSize = 32.sp,
-            fontWeight = FontWeight.Medium
-        )
+        Spacer(Modifier.height(20.dp))
+        Text("азимут ${azimuth.toInt()}`", color = Color(0xFFADE3FF), fontSize = 32.sp)
     }
 }
-
-@Composable
-private fun CompassCanvas(rotation: Float) {
-    Canvas(modifier = Modifier.fillMaxSize(0.9f)) {
-        val cx = size.width / 2f
-        val cy = size.height / 2f
-        val radius = min(size.width, size.height) / 2f
-
-        rotate(degrees = rotation, pivot = Offset(cx, cy)) {
-            drawLine(
-                color = Color(0xFFE5357B),
-                start = Offset(cx, cy),
-                end = Offset(cx, cy - radius * 0.8f),
-                strokeWidth = 28f
-            )
-            drawLine(
-                color = Color(0xFF5A5A5A),
-                start = Offset(cx, cy),
-                end = Offset(cx, cy + radius * 0.8f),
-                strokeWidth = 28f
-            )
-        }
-
-        drawCircle(
-            color = Color(0xFFD4D4D4),
-            radius = 28f,
-            center = Offset(cx, cy)
-        )
-    }
-}
-
-
 
 @Composable
 fun CompasLifecycle(vm: CompasViewModel) {

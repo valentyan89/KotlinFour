@@ -25,15 +25,18 @@ import androidx.compose.ui.unit.sp
 fun FiveTask(){
     val context = LocalContext.current
     val thisSec by TimerState.sec.collectAsState()
+
     TimerScreen(
         thisSec,
         onStartClick = {
             val intent = Intent(context, TimerService::class.java).apply {
                 action = TimerService.start
             }
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
-            } else {
+            }
+            else {
                 context.startService(intent)
             }
         },
@@ -42,7 +45,6 @@ fun FiveTask(){
                 action = TimerService.end
             }
             context.startService(intent)
-            TimerState.sec.value = 0
         }
     )
 }

@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -115,11 +116,11 @@ fun CompasScreen(viewModel: CompasViewModel) {
 @Composable
 fun CompasLifecycle(vm: CompasViewModel) {
     val lifecycleOwner = LocalLifecycleOwner.current
-
+    val context = LocalContext.current
     DisposableEffect(Unit) {
         val job = lifecycleOwner.lifecycleScope.launch {
             lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                vm.start()
+                vm.start(context)
                 try {
                     awaitCancellation()
                 }

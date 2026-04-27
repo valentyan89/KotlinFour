@@ -1,6 +1,5 @@
 package com.example.fm
 
-import android.app.Application
 import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -10,44 +9,44 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 
-class CompasViewModel(application: Application) : AndroidViewModel(application), SensorEventListener {
-
-    private val sensorManager = application.getSystemService(Context.SENSOR_SERVICE) as SensorManager
-    private val magneticSensor = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
-    private val accelerometerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+class CompasViewModel : ViewModel(), SensorEventListener {
+    private var sensorManager: SensorManager? = null
 
     var azimuth by mutableFloatStateOf(0f)
         private set
-    var sensorAvailable by mutableStateOf(accelerometerSensor == null || magneticSensor == null)
+    var sensorAvailable by mutableStateOf(false)
         private set
 
     private val gravity = FloatArray(3)
     private val geomagnetic = FloatArray(3)
-
     private var hasGravity = false
     private var hasGeomagnetic = false
-
     private val rotationMatrix = FloatArray(9)
     private val orientation = FloatArray(3)
 
-    fun start() {
-        if (accelerometerSensor == null || magneticSensor == null) return
+    fun start(context: Context) {
+        sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
 
-        accelerometerSensor.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+        val magneticSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+        val accelerometerSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+
+        if (accelerometerSensor == null || magneticSensor == null) {
+            sensorAvailable = false
+            return
         }
 
-        magneticSensor.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
-        }
+        sensorAvailable = true
+
+        sensorManager?.registerListener(this, accelerometerSensor, SensorManager.SENSOR_DELAY_UI)
+        sensorManager?.registerListener(this, magneticSensor, SensorManager.SENSOR_DELAY_UI)
     }
 
     fun stop() {
-        sensorManager.unregisterListener(this)
-        hasGravity=false
-        hasGeomagnetic=false
+        sensorManager?.unregisterListener(this)
+        hasGravity = false
+        hasGeomagnetic = false
     }
 
 
